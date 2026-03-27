@@ -271,28 +271,28 @@ function showDiff(textarea, original, improved) {
   acceptBtn.addEventListener('click', () => {
     textarea.value = improved;
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    removeOverlay(host);
+    cleanup();
   });
 
   cancelBtn.addEventListener('click', () => {
-    removeOverlay(host);
+    cleanup();
   });
+
+  function cleanup() {
+    removeOverlay(host);
+    document.removeEventListener('keydown', escHandler);
+    document.removeEventListener('mousedown', clickOutsideHandler);
+  }
 
   // Escape key closes
   const escHandler = (e) => {
-    if (e.key === 'Escape') {
-      removeOverlay(host);
-      document.removeEventListener('keydown', escHandler);
-    }
+    if (e.key === 'Escape') cleanup();
   };
   document.addEventListener('keydown', escHandler);
 
   // Click outside closes
   const clickOutsideHandler = (e) => {
-    if (!host.contains(e.target)) {
-      removeOverlay(host);
-      document.removeEventListener('mousedown', clickOutsideHandler);
-    }
+    if (!host.contains(e.target)) cleanup();
   };
   setTimeout(() => {
     document.addEventListener('mousedown', clickOutsideHandler);
