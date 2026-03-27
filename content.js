@@ -15,47 +15,36 @@ function handleImprove() {
   const range = selection.getRangeAt(0);
   const rect = range.getBoundingClientRect();
 
-  const overlay = showSpinner(rect);
+  const overlay = showSpinner();
 
   chrome.runtime.sendMessage({ action: 'callOpenAI', text }, (response) => {
     removeOverlay(overlay);
 
     if (chrome.runtime.lastError) {
-      showResult(rect, text, null, chrome.runtime.lastError.message);
+      showResult(text, null, chrome.runtime.lastError.message);
       return;
     }
 
     if (!response || response.error) {
-      showResult(rect, text, null, response?.error || 'Unknown error occurred.');
+      showResult(text, null, response?.error || 'Unknown error occurred.');
       return;
     }
 
-    showResult(rect, text, response.improved, null);
+    showResult(text, response.improved, null);
   });
 }
 
-function createOverlayHost(rect) {
+function createOverlayHost() {
   const host = document.createElement('div');
   host.className = 'gpt-improve-host';
-  host.style.position = 'fixed';
-  host.style.left = Math.min(Math.max(rect.left, 8), window.innerWidth - 620) + 'px';
-  host.style.zIndex = '2147483647';
-
-  const spaceBelow = window.innerHeight - rect.bottom - 8;
-  if (spaceBelow >= 400) {
-    host.style.top = (rect.bottom + 8) + 'px';
-  } else {
-    // Not enough space below — pin bottom edge above the selection so popup grows upward
-    host.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
-  }
-
+  host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483647;';
   document.body.appendChild(host);
   const shadow = host.attachShadow({ mode: 'open' });
   return { host, shadow };
 }
 
-function showSpinner(rect) {
-  const { host, shadow } = createOverlayHost(rect);
+function showSpinner() {
+  const { host, shadow } = createOverlayHost();
 
   shadow.innerHTML = `
     <style>
@@ -127,8 +116,8 @@ function buildDiffHtml(original, improved) {
   }).join('');
 }
 
-function showResult(rect, original, improved, error) {
-  const { host, shadow } = createOverlayHost(rect);
+function showResult(original, improved, error) {
+  const { host, shadow } = createOverlayHost();
 
   if (error) {
     shadow.innerHTML = `
