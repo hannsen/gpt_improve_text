@@ -34,15 +34,22 @@ function handleImprove() {
   });
 }
 
-function createOverlayHost(rect) {
+function createOverlayHost(rect, estimatedHeight = 300) {
   const host = document.createElement('div');
   host.className = 'gpt-improve-host';
   host.style.position = 'fixed';
-  host.style.left = Math.min(rect.left, window.innerWidth - 620) + 'px';
-  host.style.top = (rect.bottom + 8) + 'px';
+  host.style.left = Math.min(Math.max(rect.left, 8), window.innerWidth - 620) + 'px';
   host.style.zIndex = '2147483647';
-  document.body.appendChild(host);
 
+  const spaceBelow = window.innerHeight - rect.bottom - 8;
+  if (spaceBelow >= estimatedHeight || spaceBelow >= rect.top - 8) {
+    host.style.top = (rect.bottom + 8) + 'px';
+  } else {
+    // Not enough space below — anchor to bottom so it grows upward
+    host.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+  }
+
+  document.body.appendChild(host);
   const shadow = host.attachShadow({ mode: 'open' });
   return { host, shadow };
 }
