@@ -3,23 +3,30 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: 'improve-with-gpt',
     title: 'Improve with GPT',
-    contexts: ['editable']
+    contexts: ['selection']
   });
 });
 
 // Handle context menu click
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  console.log('[GPT Improve] context menu clicked', info.menuItemId, 'tab:', tab.id);
   if (info.menuItemId !== 'improve-with-gpt') return;
 
   try {
     await chrome.tabs.sendMessage(tab.id, { action: 'getTextAndImprove' });
+    console.log('[GPT Improve] message sent to tab');
   } catch (err) {
-    // Content script not loaded — inject it and retry
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ['content.js']
-    });
-    await chrome.tabs.sendMessage(tab.id, { action: 'getTextAndImprove' });
+    console.log('[GPT Improve] content script not loaded, injecting...', err.message);
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js']
+      });
+      await chrome.tabs.sendMessage(tab.id, { action: 'getTextAndImprove' });
+      console.log('[GPT Improve] injected and message sent');
+    } catch (err2) {
+      console.error('[GPT Improve] failed to inject:', err2.message);
+    }
   }
 });
 

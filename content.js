@@ -1,69 +1,58 @@
-let activeTextarea = null;
-
-// Track which textarea was right-clicked
-document.addEventListener('contextmenu', (e) => {
-  if (e.target.tagName === 'TEXTAREA') {
-    activeTextarea = e.target;
-  } else {
-    activeTextarea = null;
-  }
-});
-
 // Listen for messages from background
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === 'getTextAndImprove') {
     handleImprove();
   }
 });
 
 function handleImprove() {
-  if (!activeTextarea) return;
+  const selection = window.getSelection();
+  const text = selection ? selection.toString().trim() : '';
 
-  const text = activeTextarea.value.trim();
   if (!text) return;
 
-  const overlay = showSpinner(activeTextarea);
+  // Position overlay near the selection
+  const range = selection.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
 
-  chrome.runtime.sendMessage(
-    { action: 'callOpenAI', text },
-    (response) => {
-      removeOverlay(overlay);
+  const overlay = showSpinner(rect);
 
-      if (chrome.runtime.lastError) {
-        showError(activeTextarea, chrome.runtime.lastError.message);
-        return;
-      }
+  chrome.runtime.sendMessage({ action: 'callOpenAI', text }, (response) => {
+    removeOverlay(overlay);
 
-      if (!response || response.error) {
-        showError(activeTextarea, response?.error || 'Unknown error occurred.');
-        return;
-      }
-
-      showDiff(activeTextarea, text, response.improved);
+    if (chrome.runtime.lastError) {
+      showResult(rect, null, chrome.runtime.lastError.message);
+      return;
     }
-  );
+
+    if (!response || response.error) {
+      showResult(rect, null, response?.error || 'Unknown error occurred.');
+      return;
+    }
+
+    showResult(rect, response.improved, null);
+  });
 }
 
-function createOverlayHost(textarea) {
-  const rect = textarea.getBoundingClientRect();
+function createOverlayHost(rect) {
   const host = document.createElement('div');
   host.className = 'gpt-improve-host';
   host.style.position = 'fixed';
-  host.style.left = rect.left + 'px';
-  host.style.top = (rect.bottom + 4) + 'px';
+  host.style.left = Math.min(rect.left, window.innerWidth - 620) + 'px';
+  host.style.top = (rect.bottom + 8) + 'px';
   host.style.zIndex = '2147483647';
   document.body.appendChild(host);
 
-  const shadow = host.attachShadow({ mode: 'closed' });
+  const shadow = host.attachShadow({ mode: 'open' });
   return { host, shadow };
 }
 
-function showSpinner(textarea) {
-  const { host, shadow } = createOverlayHost(textarea);
+function showSpinner(rect) {
+  const { host, shadow } = createOverlayHost(rect);
 
   shadow.innerHTML = `
     <style>
-      .spinner-card {
+      .card {
         background: white;
         border: 1px solid #e2e8f0;
         border-radius: 8px;
@@ -83,115 +72,48 @@ function showSpinner(textarea) {
         border-top-color: #2563eb;
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
+        flex-shrink: 0;
       }
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
+      @keyframes spin { to { transform: rotate(360deg); } }
     </style>
-    <div class="spinner-card">
-      <div class="spinner"></div>
-      Improving...
-    </div>
+    <div class="card"><div class="spinner"></div>Improving...</div>
   `;
 
   return host;
 }
 
 function removeOverlay(host) {
-  if (host && host.parentNode) {
-    host.parentNode.removeChild(host);
-  }
+  if (host && host.parentNode) host.parentNode.removeChild(host);
 }
 
-function showError(textarea, message) {
-  const { host, shadow } = createOverlayHost(textarea);
+function showResult(rect, improved, error) {
+  const { host, shadow } = createOverlayHost(rect);
 
-  shadow.innerHTML = `
-    <style>
-      .error-card {
-        background: white;
-        border: 1px solid #fca5a5;
-        border-radius: 8px;
-        padding: 12px 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 14px;
-        color: #dc2626;
-        max-width: 400px;
-      }
-    </style>
-    <div class="error-card">${escapeHtml(message)}</div>
-  `;
-
-  setTimeout(() => removeOverlay(host), 5000);
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-function diffWords(oldText, newText) {
-  const oldWords = oldText.split(/(\s+)/);
-  const newWords = newText.split(/(\s+)/);
-
-  const m = oldWords.length;
-  const n = newWords.length;
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (oldWords[i - 1] === newWords[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
-      } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-      }
-    }
-  }
-
-  const result = [];
-  let i = m, j = n;
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && oldWords[i - 1] === newWords[j - 1]) {
-      result.unshift({ type: 'equal', value: oldWords[i - 1] });
-      i--; j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      result.unshift({ type: 'added', value: newWords[j - 1] });
-      j--;
-    } else {
-      result.unshift({ type: 'removed', value: oldWords[i - 1] });
-      i--;
-    }
-  }
-
-  return result;
-}
-
-function showDiff(textarea, original, improved) {
-  if (original === improved) {
-    showError(textarea, 'No changes needed — text looks good!');
+  if (error) {
+    shadow.innerHTML = `
+      <style>
+        .card {
+          background: white;
+          border: 1px solid #fca5a5;
+          border-radius: 8px;
+          padding: 12px 16px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: 14px;
+          color: #dc2626;
+          max-width: 400px;
+        }
+      </style>
+      <div class="card">${escapeHtml(error)}</div>
+    `;
+    setTimeout(() => removeOverlay(host), 6000);
     return;
   }
 
-  const { host, shadow } = createOverlayHost(textarea);
-
-  const diff = diffWords(original, improved);
-  let diffHtml = '';
-  for (const part of diff) {
-    const escaped = escapeHtml(part.value);
-    if (part.type === 'removed') {
-      diffHtml += `<span class="removed">${escaped}</span>`;
-    } else if (part.type === 'added') {
-      diffHtml += `<span class="added">${escaped}</span>`;
-    } else {
-      diffHtml += escaped;
-    }
-  }
-
   shadow.innerHTML = `
     <style>
-      .diff-card {
+      * { box-sizing: border-box; }
+      .card {
         background: white;
         border: 1px solid #e2e8f0;
         border-radius: 8px;
@@ -199,39 +121,31 @@ function showDiff(textarea, original, improved) {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 14px;
         color: #1e293b;
-        max-width: 600px;
+        width: 600px;
+        max-width: calc(100vw - 32px);
         max-height: 400px;
         display: flex;
         flex-direction: column;
       }
-      .diff-header {
+      .header {
         padding: 10px 16px;
         font-weight: 600;
-        border-bottom: 1px solid #e2e8f0;
         font-size: 13px;
         color: #475569;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
       }
-      .diff-body {
+      .body {
         padding: 12px 16px;
         line-height: 1.6;
         overflow-y: auto;
         white-space: pre-wrap;
         word-wrap: break-word;
+        flex: 1;
       }
-      .removed {
-        background: #fecaca;
-        color: #991b1b;
-        text-decoration: line-through;
-        border-radius: 2px;
-        padding: 0 2px;
-      }
-      .added {
-        background: #bbf7d0;
-        color: #166534;
-        border-radius: 2px;
-        padding: 0 2px;
-      }
-      .diff-actions {
+      .actions {
         padding: 10px 16px;
         border-top: 1px solid #e2e8f0;
         display: flex;
@@ -244,44 +158,25 @@ function showDiff(textarea, original, improved) {
         font-size: 13px;
         cursor: pointer;
         border: none;
+        font-family: inherit;
       }
-      .btn-cancel {
-        background: #f1f5f9;
-        color: #475569;
-      }
-      .btn-cancel:hover {
-        background: #e2e8f0;
-      }
-      .btn-accept {
-        background: #2563eb;
-        color: white;
-      }
-      .btn-accept:hover {
-        background: #1d4ed8;
-      }
+      .btn-close { background: #f1f5f9; color: #475569; }
+      .btn-close:hover { background: #e2e8f0; }
+      .btn-copy { background: #2563eb; color: white; }
+      .btn-copy:hover { background: #1d4ed8; }
+      .copied { background: #16a34a !important; }
     </style>
-    <div class="diff-card">
-      <div class="diff-header">Improved Text</div>
-      <div class="diff-body">${diffHtml}</div>
-      <div class="diff-actions">
-        <button class="btn btn-cancel" id="cancelBtn">Cancel</button>
-        <button class="btn btn-accept" id="acceptBtn">Accept</button>
+    <div class="card">
+      <div class="header">
+        <span>Improved Text</span>
+      </div>
+      <div class="body" id="resultText">${escapeHtml(improved)}</div>
+      <div class="actions">
+        <button class="btn btn-close" id="closeBtn">Close</button>
+        <button class="btn btn-copy" id="copyBtn">Copy</button>
       </div>
     </div>
   `;
-
-  const acceptBtn = shadow.getElementById('acceptBtn');
-  const cancelBtn = shadow.getElementById('cancelBtn');
-
-  acceptBtn.addEventListener('click', () => {
-    textarea.value = improved;
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    cleanup();
-  });
-
-  cancelBtn.addEventListener('click', () => {
-    cleanup();
-  });
 
   function cleanup() {
     removeOverlay(host);
@@ -289,17 +184,28 @@ function showDiff(textarea, original, improved) {
     document.removeEventListener('mousedown', clickOutsideHandler);
   }
 
-  // Escape key closes
-  const escHandler = (e) => {
-    if (e.key === 'Escape') cleanup();
-  };
+  shadow.getElementById('closeBtn').addEventListener('click', cleanup);
+
+  shadow.getElementById('copyBtn').addEventListener('click', () => {
+    navigator.clipboard.writeText(improved).then(() => {
+      const btn = shadow.getElementById('copyBtn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(cleanup, 1200);
+    });
+  });
+
+  const escHandler = (e) => { if (e.key === 'Escape') cleanup(); };
   document.addEventListener('keydown', escHandler);
 
-  // Click outside closes
   const clickOutsideHandler = (e) => {
     if (!host.contains(e.target)) cleanup();
   };
-  setTimeout(() => {
-    document.addEventListener('mousedown', clickOutsideHandler);
-  }, 100);
+  setTimeout(() => document.addEventListener('mousedown', clickOutsideHandler), 100);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
