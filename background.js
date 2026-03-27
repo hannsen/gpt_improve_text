@@ -8,10 +8,19 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Handle context menu click
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== 'improve-with-gpt') return;
 
-  chrome.tabs.sendMessage(tab.id, { action: 'getTextAndImprove' });
+  try {
+    await chrome.tabs.sendMessage(tab.id, { action: 'getTextAndImprove' });
+  } catch (err) {
+    // Content script not loaded — inject it and retry
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ['content.js']
+    });
+    await chrome.tabs.sendMessage(tab.id, { action: 'getTextAndImprove' });
+  }
 });
 
 // Handle API call requests from content script

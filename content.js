@@ -29,8 +29,13 @@ function handleImprove() {
     (response) => {
       removeOverlay(overlay);
 
-      if (response.error) {
-        showError(activeTextarea, response.error);
+      if (chrome.runtime.lastError) {
+        showError(activeTextarea, chrome.runtime.lastError.message);
+        return;
+      }
+
+      if (!response || response.error) {
+        showError(activeTextarea, response?.error || 'Unknown error occurred.');
         return;
       }
 
