@@ -34,7 +34,7 @@ function handleImprove() {
   });
 }
 
-function createOverlayHost(rect, estimatedHeight = 300) {
+function createOverlayHost(rect) {
   const host = document.createElement('div');
   host.className = 'gpt-improve-host';
   host.style.position = 'fixed';
@@ -42,10 +42,10 @@ function createOverlayHost(rect, estimatedHeight = 300) {
   host.style.zIndex = '2147483647';
 
   const spaceBelow = window.innerHeight - rect.bottom - 8;
-  if (spaceBelow >= estimatedHeight || spaceBelow >= rect.top - 8) {
+  if (spaceBelow >= 400) {
     host.style.top = (rect.bottom + 8) + 'px';
   } else {
-    // Not enough space below — anchor to bottom so it grows upward
+    // Not enough space below — pin bottom edge above the selection so popup grows upward
     host.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
   }
 
