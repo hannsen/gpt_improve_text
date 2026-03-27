@@ -21,16 +21,16 @@ function handleImprove() {
     removeOverlay(overlay);
 
     if (chrome.runtime.lastError) {
-      showResult(rect, null, chrome.runtime.lastError.message);
+      showResult(rect, text, null, chrome.runtime.lastError.message);
       return;
     }
 
     if (!response || response.error) {
-      showResult(rect, null, response?.error || 'Unknown error occurred.');
+      showResult(rect, text, null, response?.error || 'Unknown error occurred.');
       return;
     }
 
-    showResult(rect, response.improved, null);
+    showResult(rect, text, response.improved, null);
   });
 }
 
@@ -86,7 +86,41 @@ function removeOverlay(host) {
   if (host && host.parentNode) host.parentNode.removeChild(host);
 }
 
-function showResult(rect, improved, error) {
+function diffWords(oldText, newText) {
+  const oldWords = oldText.split(/(\s+)/);
+  const newWords = newText.split(/(\s+)/);
+  const m = oldWords.length, n = newWords.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = oldWords[i-1] === newWords[j-1]
+        ? dp[i-1][j-1] + 1
+        : Math.max(dp[i-1][j], dp[i][j-1]);
+  const result = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldWords[i-1] === newWords[j-1]) {
+      result.unshift({ type: 'equal', value: oldWords[i-1] }); i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
+      result.unshift({ type: 'added', value: newWords[j-1] }); j--;
+    } else {
+      result.unshift({ type: 'removed', value: oldWords[i-1] }); i--;
+    }
+  }
+  return result;
+}
+
+function buildDiffHtml(original, improved) {
+  const diff = diffWords(original, improved);
+  return diff.map(({ type, value }) => {
+    const escaped = escapeHtml(value);
+    if (type === 'removed') return `<span class="removed">${escaped}</span>`;
+    if (type === 'added') return `<span class="added">${escaped}</span>`;
+    return escaped;
+  }).join('');
+}
+
+function showResult(rect, original, improved, error) {
   const { host, shadow } = createOverlayHost(rect);
 
   if (error) {
@@ -109,6 +143,8 @@ function showResult(rect, improved, error) {
     setTimeout(() => removeOverlay(host), 6000);
     return;
   }
+
+  const diffHtml = buildDiffHtml(text, improved);
 
   shadow.innerHTML = `
     <style>
@@ -133,17 +169,27 @@ function showResult(rect, improved, error) {
         font-size: 13px;
         color: #475569;
         border-bottom: 1px solid #e2e8f0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
       }
       .body {
         padding: 12px 16px;
-        line-height: 1.6;
+        line-height: 1.8;
         overflow-y: auto;
         white-space: pre-wrap;
         word-wrap: break-word;
         flex: 1;
+      }
+      .removed {
+        background: #fecaca;
+        color: #991b1b;
+        text-decoration: line-through;
+        border-radius: 2px;
+        padding: 0 2px;
+      }
+      .added {
+        background: #bbf7d0;
+        color: #166534;
+        border-radius: 2px;
+        padding: 0 2px;
       }
       .actions {
         padding: 10px 16px;
@@ -164,16 +210,14 @@ function showResult(rect, improved, error) {
       .btn-close:hover { background: #e2e8f0; }
       .btn-copy { background: #2563eb; color: white; }
       .btn-copy:hover { background: #1d4ed8; }
-      .copied { background: #16a34a !important; }
+      .btn-copy.copied { background: #16a34a; }
     </style>
     <div class="card">
-      <div class="header">
-        <span>Improved Text</span>
-      </div>
-      <div class="body" id="resultText">${escapeHtml(improved)}</div>
+      <div class="header">Improved Text</div>
+      <div class="body">${diffHtml}</div>
       <div class="actions">
         <button class="btn btn-close" id="closeBtn">Close</button>
-        <button class="btn btn-copy" id="copyBtn">Copy</button>
+        <button class="btn btn-copy" id="copyBtn">Copy improved</button>
       </div>
     </div>
   `;
