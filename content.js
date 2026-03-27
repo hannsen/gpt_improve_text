@@ -1,4 +1,70 @@
-// Listen for messages from background
+// Floating trigger button
+let floatBtn = null;
+
+function showFloatButton(rect) {
+  removeFloatButton();
+  floatBtn = document.createElement('div');
+  floatBtn.textContent = '✨ GPT';
+  floatBtn.style.cssText = `
+    position: fixed;
+    top: ${Math.max(rect.top - 36, 8)}px;
+    left: ${Math.min(Math.max(rect.left, 8), window.innerWidth - 90)}px;
+    z-index: 2147483646;
+    background: #2563eb;
+    color: white;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    user-select: none;
+    white-space: nowrap;
+  `;
+  floatBtn.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    removeFloatButton();
+    handleImprove();
+  });
+  document.body.appendChild(floatBtn);
+}
+
+function removeFloatButton() {
+  if (floatBtn) { floatBtn.remove(); floatBtn = null; }
+}
+
+// Show button on text selection
+document.addEventListener('mouseup', () => {
+  setTimeout(() => {
+    const selection = window.getSelection();
+    const text = selection ? selection.toString().trim() : '';
+    if (text && selection.rangeCount > 0) {
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      showFloatButton(rect);
+    } else {
+      removeFloatButton();
+    }
+  }, 10);
+});
+
+document.addEventListener('keyup', () => {
+  const selection = window.getSelection();
+  const text = selection ? selection.toString().trim() : '';
+  if (text && selection.rangeCount > 0) {
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    showFloatButton(rect);
+  } else {
+    removeFloatButton();
+  }
+});
+
+document.addEventListener('mousedown', (e) => {
+  if (floatBtn && !floatBtn.contains(e.target)) removeFloatButton();
+});
+
+// Listen for messages from background (context menu still works on regular pages)
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === 'getTextAndImprove') {
     handleImprove();
