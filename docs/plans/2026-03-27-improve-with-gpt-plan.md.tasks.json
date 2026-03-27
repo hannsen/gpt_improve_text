@@ -1,0 +1,14 @@
+{
+  "planPath": "docs/plans/2026-03-27-improve-with-gpt-plan.md",
+  "tasks": [
+    {"id": 0, "subject": "Task 0: Project Scaffold — manifest.json", "status": "pending"},
+    {"id": 1, "subject": "Task 1: Options Page — API Key and Model Settings", "status": "pending", "blockedBy": [0]},
+    {"id": 2, "subject": "Task 2: Context Menu Registration — background.js", "status": "pending", "blockedBy": [0]},
+    {"id": 3, "subject": "Task 3: Content Script — Text Extraction + Spinner", "status": "pending", "blockedBy": [2]},
+    {"id": 4, "subject": "Task 4: OpenAI API Call — background.js", "status": "pending", "blockedBy": [2, 3]},
+    {"id": 5, "subject": "Task 5: Diff Overlay — Word-Level Diff View", "status": "pending", "blockedBy": [3, 4]},
+    {"id": 6, "subject": "Task 6: End-to-End Testing and Polish", "status": "pending", "blockedBy": [1, 4, 5]},
+    {"id": 7, "subject": "Task 7: Final Cleanup and README", "status": "pending", "blockedBy": [6]}
+  ],
+  "lastUpdated": "2026-03-27T09:15:00Z"
+}
