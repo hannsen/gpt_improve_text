@@ -127,9 +127,174 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// showDiff will be added in Task 5
+function diffWords(oldText, newText) {
+  const oldWords = oldText.split(/(\s+)/);
+  const newWords = newText.split(/(\s+)/);
+
+  const m = oldWords.length;
+  const n = newWords.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (oldWords[i - 1] === newWords[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  const result = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldWords[i - 1] === newWords[j - 1]) {
+      result.unshift({ type: 'equal', value: oldWords[i - 1] });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      result.unshift({ type: 'added', value: newWords[j - 1] });
+      j--;
+    } else {
+      result.unshift({ type: 'removed', value: oldWords[i - 1] });
+      i--;
+    }
+  }
+
+  return result;
+}
+
 function showDiff(textarea, original, improved) {
-  // Placeholder — will be implemented in Task 5
-  textarea.value = improved;
-  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  if (original === improved) {
+    showError(textarea, 'No changes needed — text looks good!');
+    return;
+  }
+
+  const { host, shadow } = createOverlayHost(textarea);
+
+  const diff = diffWords(original, improved);
+  let diffHtml = '';
+  for (const part of diff) {
+    const escaped = escapeHtml(part.value);
+    if (part.type === 'removed') {
+      diffHtml += `<span class="removed">${escaped}</span>`;
+    } else if (part.type === 'added') {
+      diffHtml += `<span class="added">${escaped}</span>`;
+    } else {
+      diffHtml += escaped;
+    }
+  }
+
+  shadow.innerHTML = `
+    <style>
+      .diff-card {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+        color: #1e293b;
+        max-width: 600px;
+        max-height: 400px;
+        display: flex;
+        flex-direction: column;
+      }
+      .diff-header {
+        padding: 10px 16px;
+        font-weight: 600;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 13px;
+        color: #475569;
+      }
+      .diff-body {
+        padding: 12px 16px;
+        line-height: 1.6;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      .removed {
+        background: #fecaca;
+        color: #991b1b;
+        text-decoration: line-through;
+        border-radius: 2px;
+        padding: 0 2px;
+      }
+      .added {
+        background: #bbf7d0;
+        color: #166534;
+        border-radius: 2px;
+        padding: 0 2px;
+      }
+      .diff-actions {
+        padding: 10px 16px;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      .btn {
+        padding: 6px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        border: none;
+      }
+      .btn-cancel {
+        background: #f1f5f9;
+        color: #475569;
+      }
+      .btn-cancel:hover {
+        background: #e2e8f0;
+      }
+      .btn-accept {
+        background: #2563eb;
+        color: white;
+      }
+      .btn-accept:hover {
+        background: #1d4ed8;
+      }
+    </style>
+    <div class="diff-card">
+      <div class="diff-header">Improved Text</div>
+      <div class="diff-body">${diffHtml}</div>
+      <div class="diff-actions">
+        <button class="btn btn-cancel" id="cancelBtn">Cancel</button>
+        <button class="btn btn-accept" id="acceptBtn">Accept</button>
+      </div>
+    </div>
+  `;
+
+  const acceptBtn = shadow.getElementById('acceptBtn');
+  const cancelBtn = shadow.getElementById('cancelBtn');
+
+  acceptBtn.addEventListener('click', () => {
+    textarea.value = improved;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    removeOverlay(host);
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    removeOverlay(host);
+  });
+
+  // Escape key closes
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      removeOverlay(host);
+      document.removeEventListener('keydown', escHandler);
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+
+  // Click outside closes
+  const clickOutsideHandler = (e) => {
+    if (!host.contains(e.target)) {
+      removeOverlay(host);
+      document.removeEventListener('mousedown', clickOutsideHandler);
+    }
+  };
+  setTimeout(() => {
+    document.addEventListener('mousedown', clickOutsideHandler);
+  }, 100);
 }
