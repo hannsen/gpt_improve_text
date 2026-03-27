@@ -144,7 +144,7 @@ function showResult(rect, original, improved, error) {
     return;
   }
 
-  const diffHtml = buildDiffHtml(text, improved);
+  const diffHtml = buildDiffHtml(original, improved);
 
   shadow.innerHTML = `
     <style>
