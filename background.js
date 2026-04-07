@@ -69,7 +69,7 @@ async function callOpenAI(text) {
         messages: [
           {
             role: 'system',
-            content: 'You are a text improvement assistant. Improve the given text by fixing grammar, spelling, punctuation, and style issues. Keep the same language as the input. Keep the original meaning and tone. Only return the improved text, nothing else.'
+            content: 'You are a text improvement assistant. Improve the given text for customer-facing communication: fix grammar, spelling, punctuation, and style issues; use a professional yet friendly tone; prefer clear and concise phrasing; avoid jargon. Keep the same language as the input. Keep the original meaning. Only return the improved text, nothing else.'
           },
           {
             role: 'user',
